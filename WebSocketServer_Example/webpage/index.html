@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <title>CC3000 Web Socket Server Test</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.1/css/bootstrap.min.css">
+    </head>
+    <body>
+        <div class="container" style="margin-top: 20px;">
+            <div class="jumbotron">
+                <h1>CC3000 WEB SOCKETS</h1>
+                <p>Demonstration of communicating with an Arduino and CC3000 through HTML5 web sockets.</p>
+                <p>
+                    <button type="button" class="btn btn-primary btn-lg" id="open">Open Socket</button>
+                    <button type="button" class="btn btn-default btn-lg" id="close">Close Socket</button>
+                </p>
+                <p>Status: <span id="socStatus">DISCONNECTED</span></p>
+            </div>
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
+                            <h2 class="panel-title">SWITCH</h2>
+                        </div>
+                        <div class="panel-body">
+                            <h4>Status: <span id="switchStatus"></span></h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
+                            <h3 class="panel-title">POTENTIOMETER</h3>
+                        </div>
+                        <div class="panel-body">
+                            <h4>Value: <span id="potValue"></span></h4>
+                            <div class="progress progress-striped">
+                                <div class="progress-bar" 
+                                     role="progressbar" 
+                                     style="width: 0%;"
+                                     id="potProgress">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
+                            <h3 class="panel-title">LED</h3>
+                        </div>
+                        <div class="panel-body">
+                            <button type="button" class="btn btn-warning btn-lg" id="ledOn">ON</button>
+                            <button type="button" class="btn btn-default btn-lg" id="ledOff">OFF</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+    <script src="//netdna.bootstrapcdn.com/bootstrap/3.0.1/js/bootstrap.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            var socket;
+
+            $('#open').click(function() {
+                console.log("Creating socket");
+                socket = new WebSocket("ws://cc3kserver.local/arduino");
+                socket.binaryType = "arraybuffer";
+                
+                socket.onopen = function (event) {
+                    // Update connection status.
+                    $('#socStatus').text('CONNECTED');
+
+                    // Ask for the current switch and potentiometer status.
+                    var command = new Uint8Array(3);
+                    command[0] = 0x01;  // Opcode, digital read
+                    command[1] = 0x01;  // Payload size, 1 byte
+                    command[2] = 0x07;  // Pin 7
+                    socket.send(command);
+                    command[0] = 0x03;  // Opcode, analog read
+                    command[1] = 0x01;  // Payload size, 1 byte
+                    command[2] = 0x03;  // Pin 3
+                    socket.send(command);
+                };
+                
+                socket.onmessage = function (event) {
+                    var message = new Uint8Array(event.data);
+                    // console.log(message);
+                    
+                    // Handle digital read response
+                    if (message[0] == 0x02 &&               // Opcode, digital read response
+                        message[1] == 0x02 &&               // Payload size, 2 bytes
+                        message[2] == 0x07) {               // Pin 7
+                        $('#switchStatus').removeClass();
+                        if (message[3] == 0x00) {           // Pin status, 0 = LOW, 1 = HIGH
+                            $('#switchStatus').text('LOW');
+                            $('#switchStatus').addClass('label label-danger');
+                        }
+                        else {
+                            $('#switchStatus').text('HIGH');
+
+                            $('#switchStatus').addClass('label label-success');
+                        }
+                    }
+                    // Handle analog read response
+                    else if (message[0] == 0x04 &&       // Opcode, digital read response
+                             message[1] == 0x03 &&       // Payload size, 3 bytes
+                             message[2] == 0x03) {       // Pin 3
+                        // Convert payload 16 bit value into integer.
+                        var value = (message[3] * 256) + message[4];
+                        $('#potValue').text(value);
+                        $('#potProgress').width((value/1023.0*100.0) + "%");
+                    }
+                }
+                
+                socket.onerror = function(event) {
+                   $('#socStatus').text('ERROR');
+                }
+                
+                socket.onclose = function(event) {
+                   $('#socStatus').text('DISCONNECTED');
+                   $('#switchStatus').removeClass();
+                   $('#switchStatus').text('');
+                   $('#potValue').text('');
+                   $('#potProgress').width('0%');
+                }
+            });
+
+            $('#close').click(function() {
+                console.log("Closing socket");
+                socket.close();
+            });
+
+            $('#ledOn').click(function() {
+                var command = new Uint8Array(4);
+                command[0] = 0x05;  // Opcode, digital write
+                command[1] = 0x02;  // Payload size, 2 bytes
+                command[2] = 0x08;  // Pin 8
+                command[3] = 0x01;  // HIGH
+                socket.send(command);
+            });
+
+            $('#ledOff').click(function() {
+                var command = new Uint8Array(4);
+                command[0] = 0x05;  // Opcode, digital write
+                command[1] = 0x02;  // Payload size, 2 bytes
+                command[2] = 0x08;  // Pin 8
+                command[3] = 0x00;  // LOW
+                socket.send(command);
+            });
+        });
+    </script>
+</html>

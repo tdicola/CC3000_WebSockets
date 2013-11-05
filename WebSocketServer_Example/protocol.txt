@@ -1,0 +1,29 @@
+Format:
+Opcode		1 byte			Operation ID
+Length		1 byte			Amount of bytes in the payload.
+Payload		n bytes (up to 255)	Payload for the associated opcode.
+
+What byte ordering?  Network byte order?
+
+Opcodes:
+
+0x00 	- unused
+
+0x01	- read digital pin question
+	  payload is 1 byte: the pin to be read
+
+0x02	- read digital pin state answer
+	  payload is 2 bytes: one for the pin and the second for the state (1 = high, 0 = low)
+
+0x03	- read analog pin question
+	  payload is 1 byte: the pin to read
+
+0x04	- read analog pin state answer
+	  payload is 3 bytes: one for the pin and the second two for the uint16_t value of the
+	  ADC (0 to 1023)
+
+0x05	- write digital pin
+	  payload is 2 bytes: one for the pin and the second for the new state (1 = high, 0 = low)
+
+0x06	- write neopixel state
+	  payload is 25*3 bytes: one triple of R, G, B values for each 25 pixels in order
